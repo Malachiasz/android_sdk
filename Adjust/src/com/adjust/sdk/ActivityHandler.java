@@ -11,8 +11,6 @@ package com.adjust.sdk;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
@@ -20,7 +18,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
-import android.preference.PreferenceManager;
 
 import org.json.JSONObject;
 
@@ -222,7 +219,7 @@ public class ActivityHandler extends HandlerThread {
         SUBSESSION_INTERVAL = AdjustFactory.getSubsessionInterval();
 
         this.adjustConfig = adjustConfig;
-        deviceInfo = new DeviceInfo();
+        deviceInfo = new DeviceInfo(adjustConfig.sdkPrefix, adjustConfig.context);
         logger = AdjustFactory.getLogger();
 
         if (adjustConfig.environment == AdjustConfig.PRODUCTION_ENVIRONMENT) {
@@ -239,15 +236,12 @@ public class ActivityHandler extends HandlerThread {
 
         deviceInfo.pluginKeys = Util.getPluginKeys(adjustConfig.context);
 
-        // TODO check if AdjustDefaultTracker and AdjustDropOfflineActivities are still needed
-
         if (adjustConfig.eventBufferingEnabled) {
             logger.info("Event buffering is enabled");
         }
 
         deviceInfo.androidId= Util.getAndroidId(adjustConfig.context);
         deviceInfo.fbAttributionId = Util.getAttributionId(adjustConfig.context);
-        deviceInfo.userAgent = UserAgent.getUserAgent(adjustConfig.context);
 
         String playAdId = Util.getPlayAdId(adjustConfig.context);
         if (playAdId == null) {
