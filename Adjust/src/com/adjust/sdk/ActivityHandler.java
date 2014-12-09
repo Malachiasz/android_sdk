@@ -228,12 +228,6 @@ public class ActivityHandler extends HandlerThread {
             logger.setLogLevel(adjustConfig.logLevel);
         }
 
-        if (adjustConfig.sdkPrefix == null) {
-            deviceInfo.clientSdk = Constants.CLIENT_SDK;
-        } else {
-            deviceInfo.clientSdk = String.format("%s@%s", adjustConfig.sdkPrefix, Constants.CLIENT_SDK);
-        }
-
         deviceInfo.pluginKeys = Util.getPluginKeys(adjustConfig.context);
 
         if (adjustConfig.eventBufferingEnabled) {

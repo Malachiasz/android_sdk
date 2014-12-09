@@ -77,7 +77,7 @@ class DeviceInfo {
         networkType = getNetworkType(networkInfo);
         networkSubtype = getNetworkSubtype(networkInfo);
         simOperator = getSimOperator(context);
-
+        clientSdk = getClientSdk(sdkPrefix);
     }
 
     private String getPackageName(Context context) { return context.getPackageName(); }
@@ -192,5 +192,13 @@ class DeviceInfo {
     private String getSimOperator(Context context) {
         TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
         return telephonyManager.getSimOperator();
+    }
+
+    private String getClientSdk(String sdkPrefix) {
+        if (sdkPrefix == null) {
+            return Constants.CLIENT_SDK;
+        } else {
+            return String.format("%s@%s", sdkPrefix, Constants.CLIENT_SDK);
+        }
     }
 }
