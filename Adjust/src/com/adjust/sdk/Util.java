@@ -9,19 +9,16 @@
 
 package com.adjust.sdk;
 
-import static com.adjust.sdk.Constants.ENCODING;
-import static com.adjust.sdk.Constants.HIGH;
-import static com.adjust.sdk.Constants.LARGE;
-import static com.adjust.sdk.Constants.LONG;
-import static com.adjust.sdk.Constants.LOW;
-import static com.adjust.sdk.Constants.MD5;
-import static com.adjust.sdk.Constants.MEDIUM;
-import static com.adjust.sdk.Constants.NORMAL;
-import static com.adjust.sdk.Constants.PLUGINS;
-import static com.adjust.sdk.Constants.SHA1;
-import static com.adjust.sdk.Constants.SMALL;
-import static com.adjust.sdk.Constants.UNKNOWN;
-import static com.adjust.sdk.Constants.XLARGE;
+import android.content.ContentResolver;
+import android.content.Context;
+import android.database.Cursor;
+import android.net.Uri;
+
+import com.adjust.sdk.plugin.Plugin;
+
+import org.apache.http.HttpResponse;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -46,27 +43,10 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.http.HttpResponse;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import android.content.ContentResolver;
-import android.content.Context;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.PackageManager.NameNotFoundException;
-import android.content.res.Configuration;
-import android.content.res.Resources;
-import android.database.Cursor;
-import android.net.Uri;
-import android.os.Build;
-import android.os.Bundle;
-import android.text.TextUtils;
-import android.util.DisplayMetrics;
-import android.util.Log;
-
-import com.adjust.sdk.plugin.Plugin;
+import static com.adjust.sdk.Constants.ENCODING;
+import static com.adjust.sdk.Constants.MD5;
+import static com.adjust.sdk.Constants.PLUGINS;
+import static com.adjust.sdk.Constants.SHA1;
 
 /**
  * Collects utility functions used by Adjust.
@@ -302,6 +282,4 @@ public class Util {
         return null;
     }
 
-
->>>>>>> 4c5559e... Attribution handler
 }
