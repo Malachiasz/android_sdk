@@ -170,10 +170,8 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
     }
 
     public void setReferrer(String referrer) {
-        PackageBuilder builder = new PackageBuilder(adjustConfig, deviceInfo, activityState);
-        builder.referrer = referrer;
-        ActivityPackage clickPackage = builder.buildClickPackage();
-        packageHandler.sendClickPackage(clickPackage);
+        adjustConfig.referrer = referrer;
+        sendReferrer();
     }
 
     public void setOfflineMode(boolean enabled) {
@@ -266,15 +264,24 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
             logger.info("Default tracker: '%s'", adjustConfig.defaultTracker);
         }
 
+        if (adjustConfig.referrer != null) {
+            sendReferrer();
+        }
+
         readAttribution();
         readActivityState();
 
         packageHandler = AdjustFactory.getPackageHandler(this, adjustConfig.context);
-        attributionHandler = buildAttributionHandler();
 
         shouldGetAttribution = true;
 
         startInternal();
+    }
+
+    private void sendReferrer() {
+        PackageBuilder builder = new PackageBuilder(adjustConfig, deviceInfo, activityState);
+        ActivityPackage clickPackage = builder.buildClickPackage("referrer");
+        packageHandler.sendClickPackage(clickPackage);
     }
 
     private void startInternal() {
@@ -286,9 +293,7 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
 
         if (!offline) {
             packageHandler.resumeSending();
-
         }
-        startTimer();
 
         long now = System.currentTimeMillis();
 
@@ -302,9 +307,7 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
             activityState.resetSessionAttributes(now);
             activityState.enabled = this.enabled;
             writeActivityState();
-            if (adjustConfig.referrer != null) {
-                setReferrer(adjustConfig.referrer);
-            }
+            startInternalFinish();
             return;
         }
 
@@ -314,6 +317,7 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
             logger.error(TIME_TRAVEL);
             activityState.lastActivity = now;
             writeActivityState();
+            startInternalFinish();
             return;
         }
 
@@ -326,48 +330,56 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
             transferSessionPackage();
             activityState.resetSessionAttributes(now);
             writeActivityState();
+            startInternalFinish();
             return;
         }
 
         // new subsession
         if (lastInterval > SUBSESSION_INTERVAL) {
             activityState.subsessionCount++;
+            activityState.sessionLength += lastInterval;
+            activityState.lastActivity = now;
+            writeActivityState();
             logger.info("Started subsession %d of session %d",
                     activityState.subsessionCount,
                     activityState.sessionCount);
         }
-        activityState.sessionLength += lastInterval;
-        activityState.lastActivity = now;
-        writeActivityState();
+        startInternalFinish();
+        return;
+    }
 
+    private void startInternalFinish() {
+        startTimer();
         if (attribution == null || activityState.askingAttribution) {
             if (shouldGetAttribution) {
-                attributionHandler.getAttribution();
+                getAttributionHandler().getAttribution();
             }
         }
-
     }
 
     private void endInternal() {
         packageHandler.pauseSending();
         stopTimer();
-        updateActivityState(System.currentTimeMillis());
-        writeActivityState();
+        // possible to have null activity state thru Adjust->setOfflineMode(true)
+        // or Adjust->setEnabled(false)
+        if (updateActivityState(System.currentTimeMillis())) {
+            writeActivityState();
+        }
     }
 
     private void trackEventInternal(Event event) {
-        if (!activityState.enabled) {
-            return;
-        }
+        if (!checkEvent(event)) return;
+        if (!activityState.enabled) return;
 
         long now = System.currentTimeMillis();
+
+
         activityState.createdAt = now;
         activityState.eventCount++;
         updateActivityState(now);
 
         PackageBuilder eventBuilder = new PackageBuilder(adjustConfig, deviceInfo, activityState);
-        eventBuilder.event = event;
-        ActivityPackage eventPackage = eventBuilder.buildEventPackage();
+        ActivityPackage eventPackage = eventBuilder.buildEventPackage(event);
         packageHandler.addPackage(eventPackage);
 
         if (adjustConfig.eventBufferingEnabled) {
@@ -408,7 +420,7 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
             adjustDeepLinks.put(keyWOutPrefix, value);
         }
 
-        attributionHandler.getAttribution();
+        getAttributionHandler().getAttribution();
 
         if (adjustDeepLinks.size() == 0) {
             return;
@@ -416,7 +428,7 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
 
         PackageBuilder builder = new PackageBuilder(adjustConfig, deviceInfo, activityState);
         builder.deepLinkParameters = adjustDeepLinks;
-        ActivityPackage clickPackage = builder.buildClickPackage();
+        ActivityPackage clickPackage = builder.buildClickPackage("deeplink");
         packageHandler.sendClickPackage(clickPackage);
     }
 
@@ -442,22 +454,23 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
         adjustConfig.context.startActivity(mapIntent);
     }
 
-    private void updateActivityState(long now) {
+    private boolean updateActivityState(long now) {
         long lastInterval = now - activityState.lastActivity;
         if (lastInterval < 0) {
             logger.error(TIME_TRAVEL);
             activityState.lastActivity = now;
-            return;
+            return true;
         }
 
         // ignore late updates
         if (lastInterval > SESSION_INTERVAL) {
-            return;
+            return false;
         }
 
         activityState.sessionLength += lastInterval;
         activityState.timeSpent += lastInterval;
         activityState.lastActivity = now;
+        return true;
     }
 
     public static Boolean deleteActivityState(Context context) {
@@ -492,23 +505,18 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
     }
 
     private void timerFired() {
-        if (null != activityState
+        if (activityState != null
                 && !activityState.enabled) {
             return;
         }
 
         packageHandler.sendFirstPackage();
 
-        updateActivityState(System.currentTimeMillis());
-        writeActivityState();
-    }
-
-    private IAttributionHandler buildAttributionHandler() {
-        PackageBuilder attributionBuilder = new PackageBuilder(adjustConfig, deviceInfo, activityState);
-        ActivityPackage attributionPackage = attributionBuilder.buildAttributionPackage();
-        IAttributionHandler attributionHandler = AdjustFactory.getAttributionHandler(this, attributionPackage);
-
-        return attributionHandler;
+        // possible to have null activity state thru Adjust->setOfflineMode(true)
+        // or Adjust->setEnabled(false)
+        if (updateActivityState(System.currentTimeMillis())) {
+            writeActivityState();
+        }
     }
 
     private void readActivityState() {
@@ -527,5 +535,23 @@ public class ActivityHandler extends HandlerThread implements IActivityHandler{
         Util.writeObject(attribution, adjustConfig.context, ATTRIBUTION_FILENAME, ATTRIBUTION_NAME);
     }
 
+    private boolean checkEvent(Event event) {
+        if (event == null) {
+            logger.error("Event missing");
+            return false;
+        }
+        if (!event.isValid()) return false;
 
+        return true;
+    }
+
+    // lazy initialization to prevent null activity state before first session
+    private IAttributionHandler getAttributionHandler() {
+        if (attributionHandler == null) {
+            PackageBuilder attributionBuilder = new PackageBuilder(adjustConfig, deviceInfo, activityState);
+            ActivityPackage attributionPackage = attributionBuilder.buildAttributionPackage();
+            attributionHandler = AdjustFactory.getAttributionHandler(this, attributionPackage);
+        }
+        return attributionHandler;
+    }
 }
